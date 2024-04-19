@@ -1,0 +1,166 @@
+---
+title: "Project Step 1"
+author: "Phuc, Megna, Sophia, Youngju"
+output:
+  html_document: default
+  pdf_document: default
+date: "2024-04-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+```{r}
+library(readr)
+library(MASS)
+```
+
+```{r}
+# Stroke Prediction Data Subset
+set.seed(1)
+stroke_base_ds <- read_csv('healthcare-dataset-stroke-data.csv',show_col_types = FALSE)
+random_sample <- sample(1:length(stroke_base_ds$id), 600,replace = FALSE)
+stroke_ds <- stroke_base_ds[random_sample, ]
+```
+
+```{r}
+names(stroke_ds)
+```
+## What Each Attribute means
+1) id: unique identifier of each patient.
+2) gender: "Male", "Female" or "Other"
+3) age: age of the patient
+4) hypertension: 0 if the patient doesn't have hypertension, 1 if the patient has hypertension
+5) heart_disease: 0 if the patient doesn't have any heart diseases, 1 if the patient has a heart disease
+6) ever_married: "No" or "Yes"
+7) work_type: "children", "Govt_jov", "Never_worked", "Private" or "Self-employed"
+8) Residence_type: "Rural" or "Urban"
+9) avg_glucose_level: average glucose level in blood
+10) bmi: body mass index
+11) smoking_status: "formerly smoked", "never smoked", "smokes" or "Unknown"*
+12) stroke: 1 if the patient had a stroke or 0 if not
+*Note: "Unknown" in smoking_status means that the information is unavailable for this patient
+
+
+```{r}
+# summary(stroke_ds$age)
+head(stroke_ds)
+```
+
+```{r}
+sample_size <- length(stroke_ds$id)
+sample_size
+```
+
+### How Old Are Our Subjects in the Data?
+
+```{r}
+age_data <- stroke_ds$age
+
+max_age <- max(age_data)
+min_age <- min(age_data)
+summary(age_data)
+bin_width <- (max_age - min_age) / 10
+age_ranges <- c("0-10", "11-20", "21-30", "31-40", "41-50", "51-60", "61-70", "71-80", "81-90", "91-100")
+
+hist(age_data,
+     main = "Histogram of Patient's Ages",
+     xlab = "Patient's Age",
+     ylab = "Number of Patients",
+     col = "skyblue",
+     xlim = c(0, 100),
+     breaks = seq(0, 100, 10),
+     labels = age_ranges,
+     cex.axis = 0.4
+     )
+```
+
+<hr>
+
+### What is the Ratio Between Male and Female Patients In Our Data?
+```{r}
+data_gender <- table(stroke_ds$gender)
+num_males <- sum(stroke_ds$gender == "Male")
+num_females <- sum(stroke_ds$gender == "Female")
+
+pie(data_gender, 
+    col = c("chartreuse3", "brown1"),
+    main = "Ratio between number of Male and Female Patients",
+    clockwise = TRUE
+    # labels = c(num_males, num_females)
+    )
+
+# print(paste("There are", num_males, "male patients and", num_females, "female patients", "in our dataset."))
+# print(paste("The ratio between the number of male patients and female patients is", as.fractions(num_males/num_females)))
+# print(paste("This means that there are more females patients in our data than male patients."))
+```
+There are 252 male patients and 348 female patients in our dataset.
+The ratio is 21:29.
+This means that there are more female patients than male patients.
+
+### Could our dataset be biased?
+```{r}
+tb_gender <- table(stroke_base_ds$gender)
+num_males_base <- sum(stroke_base_ds$gender == "Male")
+num_females_base <- sum(stroke_base_ds$gender == "Female")
+total <- num_males_base + num_females_base
+
+print(paste("Percent of Men in population", num_males/total * 100, '%' ))
+print(paste("Percent of Women in population", num_females/total * 100, '%'))
+
+as.fractions(num_males_base/num_females_base)
+
+```
+
+
+### The types of occupation in our data set
+```{r}
+occupation_data <- table(stroke_ds$work_type)
+occupation_data
+occupation_bp <- barplot(occupation_data, 
+        main = "The Types of Occupation of Patients in Dataset", 
+        xlab = "Type of Occupations",
+        ylab = "Number of Patients",
+        col = "skyblue",
+        ylim =c(0, max(occupation_data) + 200),
+        names.arg = c("Children", "Government Job", "Never Worked", "Private", "Self Employed"),
+        cex.names = 0.7,
+        las = 1,
+        )
+par(mar = c(5, 5, 5, 2)) # Bottom Left Top Right
+
+text(x = occupation_bp, y = occupation_data + 0.1, labels = occupation_data, pos = 3)
+```
+
+
+### Hypertension (high blood pressure)
+##### When the pressure in the patient's blood vessels are too high (140/90 mmHg or higher).\newline
+
+```{r}
+table_hypertension <- table(stroke_ds$hypertension)
+# stroke_ds$hypertension
+barplot_hypertension <- barplot(table_hypertension,
+        main = "Number of Patients with Hypertension in Data", 
+        xlab = "Patient Response", 
+        ylab = "Number of Patients",
+        col = "skyblue",
+        names.arg = c('No', 'Yes'),
+        xlim = c(0,3),
+        ylim = c(0, max(table_hypertension) + 100))
+
+text(x = barplot_hypertension, y = table_hypertension + 0.1, labels = table_hypertension, pos = 3)
+```
+
+
+## When Do Strokes Start Appear in our Patients?
+### Map the probability of stroke ~ age.
+```{r}
+# past_stroke <- stroke_ds$stroke
+# past_stroke
+# barplot(age_data ~ past_stroke)
+
+```
+
+
