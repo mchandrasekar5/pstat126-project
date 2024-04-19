@@ -61,7 +61,7 @@ age_data <- stroke_ds$age
 
 max_age <- max(age_data)
 min_age <- min(age_data)
-summary(age_data)
+# summary(age_data)
 bin_width <- (max_age - min_age) / 10
 age_ranges <- c("0-10", "11-20", "21-30", "31-40", "41-50", "51-60", "61-70", "71-80", "81-90", "91-100")
 
@@ -71,6 +71,7 @@ hist(age_data,
      ylab = "Number of Patients",
      col = "skyblue",
      xlim = c(0, 100),
+     ylim = c(0, max(age_data) + 50),
      breaks = seq(0, 100, 10),
      labels = age_ranges,
      cex.axis = 0.4
