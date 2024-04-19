@@ -1,6 +1,6 @@
 ---
 title: "Project Step 1"
-author: "Phuc, Megna, Sophia, Youngju"
+author: "Phuc, Meghna, Sophia, Youngju"
 output:
   html_document: default
   pdf_document: default
