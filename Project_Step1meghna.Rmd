@@ -1,0 +1,200 @@
+---
+title: "Project Step 1"
+author: "Phuc, Meghna, Sophia, Youngju"
+output:
+  html_document: default
+  pdf_document: default
+date: "2024-04-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+```{r}
+library(readr)
+library(MASS)
+library(tidyverse)
+```
+
+# Our Data
+
+### Name & Source
+
+Stroke Prediction DataSet from Kaggle.
+
+Link: https://www.kaggle.com/datasets/fedesoriano/stroke-prediction-dataset
+
+### Description of Variables
+
+1. id: unique identifier of each patient
+2. gender: "Male", "Female" or "Other"
+3. age: age of the patient
+4. hypertension: Binary variable describing 0 if the patient doesn't have hypertension, 1 if the patient has hypertension
+5. heart_disease: Describes if patient has a heart disease. The value is 0 if the patient doesn't have any heart diseases, and 1 if the patient has a heart disease.
+6. ever_married: Describes if patient has ever been married. Values are either "No" or "Yes"
+7. work_type: describes type of work done by patient. The values include "children", "Govt_jov", "Never_worked", "Private" or "Self-employed".
+8. Residence_type: "Rural" or "Urban" residence
+9. avg_glucose_level: average glucose level in blood
+10. bmi: body mass index
+11. smoking_status: "formerly smoked", "never smoked", "smokes" or "Unknown"*
+12. stroke: Binary variable; 1 if the patient had a stroke or 0 if not
+*Note: "Unknown" in smoking_status means that the information is unavailable for this patient
+
+### Observational Unit
+
+Patients with 12 clinical features.
+
+
+```{r}
+# Stroke Prediction Data Subset
+set.seed(1)
+stroke_base_ds <- read_csv('data/healthcare-dataset-stroke-data.csv',show_col_types = FALSE)
+random_sample <- sample(1:length(stroke_base_ds$id), 600,replace = FALSE)
+stroke_ds <- stroke_base_ds[random_sample, ]
+```
+
+```{r}
+names(stroke_ds)
+```
+### What Each Attribute means
+1) id: unique identifier of each patient.
+2) gender: "Male", "Female" or "Other"
+3) age: age of the patient
+4) hypertension: 0 if the patient doesn't have hypertension, 1 if the patient has hypertension
+5) heart_disease: 0 if the patient doesn't have any heart diseases, 1 if the patient has a heart disease
+6) ever_married: "No" or "Yes"
+7) work_type: "children", "Govt_jov", "Never_worked", "Private" or "Self-employed"
+8) Residence_type: "Rural" or "Urban"
+9) avg_glucose_level: average glucose level in blood
+10) bmi: body mass index
+11) smoking_status: "formerly smoked", "never smoked", "smokes" or "Unknown"*
+12) stroke: 1 if the patient had a stroke or 0 if not
+*Note: "Unknown" in smoking_status means that the information is unavailable for this patient
+
+
+```{r}
+# summary(stroke_ds$age)
+head(stroke_ds)
+```
+
+```{r}
+sample_size <- length(stroke_ds$id)
+sample_size
+```
+
+## When Do Strokes Start Appear in our Patients?
+### Map the probability of stroke ~ age.
+```{r, fig.cap= "The distribution of ages for patients who have had a stroke in the dataset.", echo = FALSE}
+# past_stroke <- stroke_ds$stroke
+# past_stroke
+# barplot(age_data ~ past_stroke)
+
+#stroke_ds$stroke
+library(dplyr)
+library(ggplot2)
+
+StrokePatients <- stroke_ds %>%
+  filter(.data$stroke == 1) #1 indicates that patient has had a stroke
+
+StrokePatients
+
+NumStrokePatients <- length(StrokePatients)
+NumStrokePatients
+
+age_data <- StrokePatients$age
+
+max_age <- max(age_data)
+min_age <- min(age_data)
+summary(age_data)
+
+
+bin_width <- (max_age - min_age) / 10
+age_ranges <- c("50-54", "55-59", "60-64", "65-69", "70-74", "75-80")
+
+hist(age_data,
+      main = "Histogram of Ages for Stroke Patients",
+      xlab = "Patient's Age",
+      ylab = "Number of Patients",
+      col = "skyblue",
+      xlim = c(50, 80),
+     ylim = c(0,15),
+      breaks = seq(50, 80, 5),
+      labels = age_ranges,
+      cex.axis = 0.4
+      )
+```
+```{r, echo = FALSE, eval = FALSE}
+youngestStrokePatient <- min(StrokePatients$age)
+youngestStrokePatient
+
+oldestStrokePatient <- max(StrokePatients$age)
+oldestStrokePatient
+
+length(StrokePatients$age)
+median(StrokePatients$age)
+```
+
+
+Figure x above shows the distribution of patients in this dataset who have had a stroke. The distribution appears skewed to the right, with the majority of stroke patients between 75-80 years old, on the higher end of the spectrum. In this dataset, the youngest stroke patient is 52 years old, while the oldest is 80 years old. The median age of patients who have had a stroke is 71 years old.
+
+The distribution follows our expectations;as it is expected for older people to have a higher occurance of strokes. However, it is important to note that in this dataset, only 27 patients across the entire dataset of 600 patients have had a stroke, which may be representative of the entire population as strokes are relatively rare, but may make it harder for further predictions later on.
+
+
+
+### How many of the non-stroke patients in the dataset are married vs patients with strokes?
+```{r, fig.cap = "Fig x displays the percentage of marriage in patients who have had a stroke versus patients who have not had a stroke."}
+stroke_marriage <- stroke_ds %>%
+  select(stroke, ever_married)
+
+counts <- stroke_marriage %>%
+  group_by(stroke, ever_married) %>%
+  summarise(count = n()) %>%
+  mutate(ever_married = factor(ever_married, levels = c("Yes", "No")))
+
+counts
+
+counts <- counts %>%
+  group_by(stroke) %>%
+  mutate(percent = count / sum(count) * 100)
+
+ggplot(counts, aes(x = factor(stroke), y = percent, fill = ever_married)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Patients", y = "Percentage", fill = "Married") +
+  scale_x_discrete(labels = c("No Stroke", "Stroke")) +
+  scale_fill_manual(values = c("Yes" = "lightblue", "No" = "orange")) +
+  theme_minimal() +
+  ggtitle("Percentage of marriage in stroke vs. non-stroke patients")
+```
+Originally, we used counts as the y-axis to compare the stroke patients versus non-stroke patients. However, since the group of stroke patients is very small (n = 27) compared to the group of non-stroke patients (n = 573), we instead plotted marriage frequency within the groups as a percentage. 
+
+Based off of the graph, a higher percentage of stroke patients are married than non-stroke patients. This could be explained by the higher average age of stroke patients, or other confounding variables, however. It is also important to note that the sample of stroke patients is very small which could also skew the representativeness the results we see. Significance testing and other further analysis would need to be done to verify the apparent results of this graph.
+
+
+```{r, fig.cap = "Fig x displays the smoking status in patients who have had a stroke versus patients who have not had a stroke. Patients have either never smoked, formerly smoked, currently smoke, or their smoking status is unkown."}
+stroke_smoking <- stroke_ds %>%
+  select(stroke, smoking_status)
+
+counts2 <- stroke_smoking %>%
+  group_by(stroke, smoking_status) %>%
+  summarise(count = n()) %>%
+  mutate(smoking_status = factor(smoking_status, levels = c("formerly smoked", "Unknown", "smokes", "never smoked")))
+
+counts2
+
+counts2 <- counts2 %>%
+  group_by(stroke) %>%
+  mutate(percent = count / sum(count) * 100)
+
+ggplot(counts2, aes(x = factor(stroke), y = percent, fill = smoking_status)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Patients", y = "Percentage", fill = "Smoking status") +
+  scale_x_discrete(labels = c("No Stroke", "Stroke")) +
+  scale_fill_manual(values = c("formerly smoked" = "blue", "smokes" = "darkblue", "Unknown" = "gray", "never smoked" = "lightblue")) +
+  theme_minimal() +
+  ggtitle("Smoking Status in stroke vs. non-stroke patients")
+```
+Based off of the graph, a higher percentage of stroke patients have formerly smoked than non-stroke patients. This could be explained by the higher average age of stroke patients. Additionally, it is surprising to see that stroke patients and non-stroke patients have a similar percantage of people that currently smoke. Slightly more non-stroke patients have never smoked that stroke patients. It is also important to note that the sample of stroke patients is very small which could also skew the representativeness the results we see. Significance testing and other further analysis would need to be done to verify the apparent results of this graph.
+
+
