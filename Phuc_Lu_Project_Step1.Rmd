@@ -1,0 +1,122 @@
+---
+title: "Project Step 1"
+author: "Phuc, Meghna, Sophia, Youngju"
+output:
+  pdf_document: default
+  # html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r}
+library(readr) # So we can read csv file
+library(skimr)
+```
+
+```{r}
+# Stroke Prediction Data Subset
+set.seed(1)
+stroke_base_ds <- read_csv('healthcare-dataset-stroke-data.csv',show_col_types = FALSE)
+random_sample <- sample(1:length(stroke_base_ds$id), 600,replace = FALSE)
+stroke_ds <- stroke_base_ds[random_sample, ]
+```
+
+
+## What Each Attribute are
+1) id: unique identifier of each patient.
+2) gender: "Male", "Female" or "Other"
+3) age: age of the patient
+4) hypertension: 0 if the patient doesn't have hypertension, 1 if the patient has hypertension
+5) heart_disease: 0 if the patient doesn't have any heart diseases, 1 if the patient has a heart disease
+6) ever_married: "No" or "Yes"
+7) work_type: "children", "Govt_job", "Never_worked", "Private" or "Self-employed"
+8) Residence_type: "Rural" or "Urban"
+9) avg_glucose_level: average glucose level in blood
+10) bmi: body mass index
+11) smoking_status: "formerly smoked", "never smoked", "smokes" or "Unknown"*
+12) stroke: 1 if the patient had a stroke or 0 if not
+*Note: "Unknown" in smoking_status means that the information is unavailable for this patient
+
+
+```{r, fig.cap = "This histogram shows that our patients' age is roughly centered around 40 years old. The distribution of the ages is slightly left skewed. The lowest person is about 3 months old and the oldest person is 82 years old. The average age is 43 years old and our age varies about 23 years on average. The median age of our patients is 46."}
+
+age_data <- stroke_ds$age
+max_age <- max(age_data)
+min_age <- min(age_data)
+
+bin_width <- (max_age - min_age) / 10
+
+hist(age_data,
+     main = "Histogram of Patient's Ages",
+     xlab = "Patient's Age",
+     ylab = "Number of Patients",
+     col = "skyblue",
+     xlim = c(0, 100),
+     ylim = c(0, max(age_data)),
+     breaks = seq(0, 100, 5),
+     cex.axis = 0.6
+     )
+
+# Calculate frequencies in each bin
+freq <- table(cut(age_data, breaks = seq(0, 100, 5)))
+
+# Add text labels for each bin
+bin_centers <- as.numeric(gsub("\\((.*),.*\\]", "\\1", names(freq)))
+text(bin_centers + 2.5, freq + 5, labels = freq)
+```
+
+
+
+```{r, fig.cap= "There are 252 male patients and 348 female patients in our data set. There are 42% male and 58% are female. Since this means that our data set is biased with there are more female patients than male patients. The consequence of this might affect our analysis and models later on."}
+data_gender <- table(stroke_ds$gender)
+num_males <- sum(stroke_ds$gender == "Male")
+num_females <- sum(stroke_ds$gender == "Female")
+sample_size <- length(stroke_ds$id)
+percent_males <- num_males / sample_size
+percent_females <- num_females / sample_size
+
+
+pie(data_gender, 
+    col = c("chartreuse3", "brown1"),
+    main = "Ratio between number of Male and Female Patients",
+    clockwise = TRUE
+    )
+```
+
+
+```{r, fig.cap= "The occupation of our patients are divided into 5 types. This graph shows the number of patients in each of the occupations. We find that the majority of our patients work privately and there are a lot of children in our data. The never worked category is smallest. This could include people who couldn't work due to a disability or teenagers to adults who've never had a first job before."}
+occupation_data <- table(stroke_ds$work_type)
+# occupation_data
+occupation_bp <- barplot(occupation_data, 
+        main = "The Types of Patient Occupations", 
+        xlab = "Type of Occupations",
+        ylab = "Number of Patients",
+        col = "skyblue",
+        ylim =c(0, max(occupation_data) + 200),
+        names.arg = c("Children", "Government Job", "Never Worked", "Private", "Self Employed"),
+        cex.names = 0.7,
+        las = 1,
+        )
+par(mar = c(5, 5, 5, 2)) # Bottom Left Top Right
+
+text(x = occupation_bp, y = occupation_data + 0.1, labels = occupation_data, pos = 3)
+```
+
+```{r, fig.cap = "Hypertension is when the pressure in the patient's blood vessels are too high (140/90 mmHg or higher. Our graph shows that the majority of our patients do not have hypertension. About 88% of our patients do not have hypertension at the time this data was taken. In addition, about 12% of about patients have had hypertension."}
+
+table_hypertension <- table(stroke_ds$hypertension)
+barplot_hypertension <- barplot(table_hypertension,
+        main = "Number of Patients with Hypertension", 
+        xlab = "Patient Response", 
+        ylab = "Number of Patients",
+        col = "skyblue",
+        names.arg = c('No', 'Yes'),
+        xlim = c(0,3),
+        ylim = c(0, max(table_hypertension) + 100))
+
+text(x = barplot_hypertension, y = table_hypertension + 0.1, labels = table_hypertension, pos = 3)
+```
+
+
