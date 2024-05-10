@@ -31,13 +31,13 @@ age = housing$housing_median_age
 
 for (i in 1:length(age)){
     if (age[i] <= 20){
-    housing$housing_median_age[[i]] <- "new houses"
+    housing$housing_median_age[[i]] <- "NEW"
   }
   else if (age[i] > 20 && age[i] <= 40){
-    housing$housing_median_age[[i]] <- "moderately old houses"
+    housing$housing_median_age[[i]] <- "MODERATE"
   }
   else if (age[i] > 40 && age[i] <= 60){
-    housing$housing_median_age[[i]]<-"old houses"
+    housing$housing_median_age[[i]]<-"OLD"
   }
 }
 
