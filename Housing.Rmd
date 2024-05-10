@@ -1,0 +1,46 @@
+---
+title: "Project Step 2"
+author: "Phuc, Meghna, Sophia, Youngju"
+output:
+  pdf_document: default
+  # html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readr) # So we can read csv file
+library(skimr)
+```
+
+```{r}
+set.seed(1)
+housing_base <- read_csv('housing.csv',show_col_types = FALSE)
+housing <- sample(1:length(housing_base$households), 600,replace = FALSE)
+housing <- housing_base[housing, ]
+```
+
+```{r}
+## Converting median housing age into categorical data
+## Categories: new house, moderately old house, new house
+## Intervals 20 years apart from 0 - 60
+
+age = housing$housing_median_age
+
+for (i in 1:length(age)){
+    if (age[i] <= 20){
+    housing$housing_median_age[[i]] <- "new house"
+  }
+  else if (age[i] > 20 && age[i] <= 40){
+    housing$housing_median_age[[i]] <- "moderately old house"
+  }
+  else if (age[i] > 40 && age[i] <= 60){
+    housing$housing_median_age[[i]]<-"old house"
+  }
+}
+
+head(housing)
+```
+
