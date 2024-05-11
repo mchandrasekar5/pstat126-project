@@ -1,18 +1,32 @@
 ---
-title: "Project Step 2"
-author: "Phuc, Meghna, Sophia, Youngju"
+title: "California Housing Price in 1990"
+author:
+  - "Phuc Lu"
+  - "Meghna Chandrasekar"
+  - "Sophia Li"
+  - "Youngju Kwon"
 output:
-  pdf_document: default
-  # html_document: default
+  pdf_document:
+    latex_engine: xelatex
+  html_document: default
+  rmarkdown::pdf_document:
+    fig_caption: yes        
+    includes:  
+      in_header: preamble-latex.tex
+spacing: single
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 ```
 
-```{r}
+```{r, warning=FALSE, message=FALSE}
 library(readr) # So we can read csv file
 library(skimr)
+# library(mapview)
+# library(sf)
+library(dplyr)
+library(ggplot2)
 ```
 
 ```{r}
@@ -21,6 +35,9 @@ housing_base <- read_csv('housing.csv',show_col_types = FALSE)
 housing <- sample(1:length(housing_base$households), 600,replace = FALSE)
 housing <- housing_base[housing, ]
 ```
+
+## Objective: 
+Apply SLR to explore relationship between two continuous variables.
 
 ```{r}
 ## Converting median housing age into categorical data
@@ -40,7 +57,100 @@ for (i in 1:length(age)){
     housing$housing_median_age[[i]]<-"OLD"
   }
 }
+```
 
-head(housing)
+
+```{r, eval = FALSE}
+housing_sf <- st_as_sf(housing, coords = c("longitude", "latitude"), crs = 4326)
+# mapview(housing_sf)
+```
+
+```{r}
+# Median House Value and Median Income
+
+# Median House Value within the block
+#  measured in US Dollars
+
+# Median income of people in the block
+# Measured in tens of thousand of US dollars
+
+# Blocks are defined by its longitude and latitude
+```
+
+
+```{r}
+alpha <- 0.05
+
+x_house_val <- housing$median_house_value
+y_inc <- housing$median_income
+
+n_house <- length(x_house_val)
+
+Sxy <- sum(x_house_val - mean(x_house_val)) * sum(y_inc - mean(y_inc))
+Sxx <- sum(x_house_val - mean(x_house_val)) * sum(x_house_val - mean(x_house_val))
+
+beta_hat_1 <- Sxy/Sxx
+beta_hat_0 <- mean(y_inc) - beta_hat_1 * mean(x_house_val)
+
+y_hat_house <- beta_hat_0 + beta_hat_1 * x_house_val
+
+ms_res_house <- sum(y_inc - y_hat_house)^2 / (n_house - 2)
+
+t0 <- (beta_hat_1 - 0 ) / sqrt(ms_res_house/Sxx)
+
+t_quantile <- qt(p = 1 - alpha/2, df = n_house - 2)
+
+p_value <- 2 * pt(abs(t0), n_house - 2, lower.tail = FALSE)
+
+```
+
+## Estimation of the parameters: Values
+```{r}
+# print(paste('Sxx: ', Sxx))
+# print(paste('beta hat 0: ', beta_hat_0))
+# print(paste('beta hat 1: ', beta_hat_1))
+# print(paste('sigma hat^2: ', ms_res_house))
+# print(paste('t0: ', t0))
+# print(paste('t-distribution: ', t_quantile))
+# print(paste('p_value: ', p_value))
+# print(paste('standard error: ', sqrt(ms_res_house)))
+```
+
+
+$Sxx =  3.19328032983082 \times 10^{-16}$\
+$\hat\beta_0 = 3.73348332192002$\
+$\hat\beta_1 =  5.71583303644137\times10^{-07}$\
+${\hat{\sigma}}^2 =  3.4311491880934 \times 10^{-30}$\
+$t_0 =  5.51414594107181$\
+$t_{0.0025, 598} =  1.9639388980555$\
+$\text{p-value} = 5.2198833336244\times10^{-08}$\
+$\text{SE} = 1.85233614338581 \times 10^{-15}$\
+
+
+```{r}
+# t0 > t_quantile
+```
+
+```{r}
+# print(paste('At the 0.05 significant level, we fail to reject H0. This means that given a particular block in California, there is a linear relation between the median house value and the median income of the people living in the block.'))
+```
+
+# Conclusion:
+At the 0.05 significant level, we fail to reject H0. This means that given a particular block in California, there is a linear relation between the median house value and the median income of the people living in the block.'
+
+
+```{r, fig.cap='This graph displays the linear relationship between the median value of a house and the median income of the people living in a particular block in California. We can observe that this relationship is close when in low income area and with cheaper but this relationship is more varied as the median price of houses and people\'s income rises.'}
+
+model <- lm(y_inc ~ x_house_val, data = housing)
+# summary(model)
+
+p <- ggplot(housing, aes(x = x_house_val, y = y_inc)) + 
+  geom_point() + 
+  labs(x = 'Median house value of a California block in USD',
+       y = 'Median house income in 10 thousands of dollars')
+
+p + geom_smooth(method = 'lm',
+  formula = 'y ~ x',
+  se = F)
 ```
 
