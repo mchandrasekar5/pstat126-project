@@ -7,6 +7,7 @@ author:
   - "Youngju Kwon"
 output:
   pdf_document:
+    extra_dependencies: ["float"]
     latex_engine: xelatex
   html_document: default
   rmarkdown::pdf_document:
@@ -74,64 +75,126 @@ housing_sf <- st_as_sf(housing, coords = c("longitude", "latitude"), crs = 4326)
 
 # Blocks are defined by its longitude and latitude
 
-# head(housing)
-
-# skim(housing) #%>%
-#  select(skim_type, skim_variable, numeric.mean, numeric.sd, numeric.p0, numeric.p50, numeric.p100, skim_hist)
 ```
 
 
+
+## Our Simple Linear Regression Model is given by
+$$
+(\text{Median Income})_i = \beta_0 + \beta_1\text{(Median House Value)}_i + \epsilon_i
+$$
+where $\beta_0$ and $\beta_1$ are unknown constants and $\epsilon_i$ is the random error.
+
+## Hypothesis
+We want to know if there is a linear relationship between the median value of houses in a particular block in California in the 1990s and the people living in the block's median income. In other words, we want to test to see if the value of people's house has any linear relationship to their income.\
+$$
+H_0: \beta_1 = 0 \text{ vs. } H_a: \beta_1 \neq 0
+$$
+
+## Plotting Variables
+```{r, fig.pos='H', fig.width = 5, fig.height = 3, fig.cap='This graph displays the linear relationship between the median value of a house and the median income of the people living in a particular block in California. We can observe that this relationship is close when in low income area and with cheaper but this relationship is more varied as the median price of houses and people\'s income rises.'}
+
+model <- lm(median_income ~ median_house_value, data = housing)
+p <- ggplot(housing, aes(x = median_house_value, y = median_income)) + 
+  geom_point() + 
+  labs(x = 'Median house value of a block (USD)',
+       y = 'Median house income (USD)') +xlim(0, (max(housing$median_house_value+ 20000))) + ggtitle ("Linear Model of Median Income and Median House Value")
+
+p + geom_smooth(method = 'lm',
+  formula = 'y ~ x',
+  se = F) + theme(plot.title = element_text(size=12))
+```
+
+## Checking Assumptions
+```{r, fig.pos='H',fig.align='center', fig.width = 7, fig.height = 4, fig.cap= "These graphs show the fan shape which means that as we move go from cheaper to more expensive houses, the variation increases. This fails the assumption of constant variance. As a consequence, we can expect the estimate of the variance, or MSE to be overestimate or underestimate some values of the predictors."}
+# Residual Vs. Fitted Plot
+model <- lm(median_income ~ median_house_value, data = housing)
+house_val <- housing$median_house_value
+inc <- housing$median_income
+
+residuals <- model$residuals
+par(mfrow=c(1, 2))
+
+plot(fitted(model),residuals, 
+     pch = 19,
+     main = "Residual vs. Fitted Model",
+     xlab = "Residuals",
+     ylab = "Fitted Model",
+     cex.main = 1)
+abline(0,0)
+
+res1 <- model$residuals
+plot(residuals, house_val, 
+     pch = 19,
+     main = "Residual vs. Predictor",
+     xlab = "Residuals",
+     ylab = "Median House Value",
+     cex.main = 1)
+
+```
+
+## Normality
+```{r,fig.pos='H',fig.align='center', fig.width = 7, fig.height = 4, fig.cap = "The median house value is distributed approximately Normal"}
+
+par(mfrow = c(1,2))
+qqnorm(house_val, pch = 19,
+       main = "Normaly Q-Q Plot of Median House Value",
+       cex.main = .8)
+qqline(house_val)
+
+qqnorm(inc, pch = 19,
+       main = "Normaly Q-Q Plot of Median Income",
+       cex.main = 1
+)
+qqline(inc)
+```
+
+
+# Hypothesis Testing
 ```{r}
+## Manual Calculation
+
 alpha <- 0.05
 
-x_house_val <- housing$median_house_value
-y_inc <- housing$median_income
+house_val <- housing$median_house_value
+inc <- housing$median_income
 
-if (length(x_house_val) == length(y_inc)){
-  n_house <- length(x_house_val)
+if (length(house_val) == length(inc)){
+  n <- length(house_val)
 }else{
-  n_house <- "Inconsistent n"
+  print(paste("Inconsistent n"))
 }
 
 # Sxy and Sxx
-Sxy <- sum((x_house_val - mean(x_house_val)) * (y_inc - mean(y_inc)))
-Sxx <- sum((x_house_val - mean(x_house_val))^2)
+Sxy <- sum((house_val - mean(house_val)) * (inc - mean(inc)))
+Sxx <- sum((house_val - mean(house_val))^2)
 
 # beta 1 and beta 0
 beta_hat_1 <- Sxy/Sxx
-beta_hat_0 <- mean(y_inc) - (beta_hat_1 * mean(x_house_val))
+beta_hat_0 <- mean(inc) - (beta_hat_1 * mean(house_val))
 
 # prediction and residual
-y_hat_house <- beta_hat_0 + (beta_hat_1 * x_house_val)
-residuals <- y_inc - y_hat_house
+y_hat <- beta_hat_0 + (beta_hat_1 * house_val)
+residuals <- inc - y_hat
 
 # Mean squared residuals
 SSres <- sum(residuals^2)
-ms_res_house <- SSres/ (n_house - 2)
+ms_res <- SSres/ (n - 2)
 
 # Standard Error of beta 1
-se_beta_hat_1 <- sqrt(ms_res_house / Sxx)
+se_beta_hat_1 <- sqrt(ms_res / Sxx)
 
 # t-statistic
 t0 <- beta_hat_1 / se_beta_hat_1
 
-t_quantile <- qt(p = 1 - alpha/2, df = n_house - 2)
+t_quantile <- qt(p = 1 - alpha/2, df = n - 2)
 
 # p-value
-p_value <- 2 * pt(abs(t0), df = n_house - 2, lower.tail = FALSE)
+p_value <- 2 * pt(abs(t0), df = n - 2, lower.tail = FALSE)
 
 # list(beta_hat_0 = beta_hat_0, beta_hat_1 = beta_hat_1, t0 = t0, t_quantile = t_quantile)
 ```
 
-## Simple Regression Model
-$$
-\text{medianIncome}_i = \beta_0 + \beta_1{medianHouseValue}_i
-$$
-
-# Hypothesis
-We want to know if there is a linear relationship between the median value of houses in a particular block in California and the people's median income.
-
-$H_0: \beta_1 = 0$ vs. $H_a: \beta_1 \neq 0$
 
 ```{r}
 # print(paste('Sxx: ', Sxx))
@@ -143,8 +206,11 @@ $H_0: \beta_1 = 0$ vs. $H_a: \beta_1 \neq 0$
 # print(paste('p_value: ', p_value))
 # print(paste('standard error: ', se_beta_hat_1))
 ```
-$\hat\beta_0 =  1.43434052481747$, $\hat\beta_1 =  0.0000117000826833864$\
-$|t_0| =  |24.5834068785213| > t_{0.0025, 598} =  1.9639388980555$
+
+Reject $H_0$ if $|t_0| > t_{0.0025, 598}$\
+We found that $t_0 = 24.5834068785213$\
+So, $|24.5834068785213| >  1.9639388980555$\
+
 ```{r}
 # print(paste('At the 0.05 significant level, we fail to reject H0. This means that given a particular block in California, there is a linear relation between the median house value and the median income of the people living in the block.'))
 ```
@@ -152,114 +218,31 @@ $|t_0| =  |24.5834068785213| > t_{0.0025, 598} =  1.9639388980555$
 At the 0.05 significant level, we reject H0. This means that given a particular block in California in the 1990s, there is a linear relation between the median house value and the median income of the people living in the block.\
 
 
-# Checking Assumptions
-```{r, fig.cap="This shows the fan shape which means that as we move left to right, the variation in the data increases. This fails the assumption of constant variance."}
-# Residual Vs. Fitted Plot
-model <- lm(median_income ~ median_house_value, data = housing)
-residuals <- model$residuals
 
-plot(fitted(model),residuals)
-abline(0,0)
-
-```
-## Residual vs. Predictor
-```{r, }
-res1 <- model$residuals
-plot(residuals, x_house_val)
-```
-
-```{r, fig.cap = "Both median house value and median income are distributed roughly normal."}
-# Normality
-qqnorm(x_house_val)
-qqline(x_house_val)
-qqnorm(y_inc)
-qqline(y_inc)
-```
-
-
-
-# Plotting Variables
-```{r, fig.cap='This graph displays the linear relationship between the median value of a house and the median income of the people living in a particular block in California. We can observe that this relationship is close when in low income area and with cheaper but this relationship is more varied as the median price of houses and people\'s income rises.'}
-
-model <- lm(y_inc ~ x_house_val, data = housing)
-p <- ggplot(housing, aes(x = x_house_val, y = y_inc)) + 
-  geom_point() + 
-  labs(x = 'Median house value of a California block in USD',
-       y = 'Median house income in USD') +xlim(0, (max(x_house_val+ 20000)))
-
-p + geom_smooth(method = 'lm',
-  formula = 'y ~ x',
-  se = F)
-```
 
 ## Confidence Interval
 ```{r}
-model <- lm(y_inc ~ x_house_val, data = housing)
+model <- lm(median_income ~ median_house_value, data = housing)
 model_summary <- summary(model)
 beta_hat_0 <- model$coefficients[[1]]
 beta_hat_1 <- model$coefficients[[2]]
 
-t_0 <- model_summary$coefficients["x_house_val", "t value"]
-p_value <- model_summary$coefficients["x_house_val" , "Pr(>|t|)"]
-se <- model_summary$coefficients["x_house_val" , "Std. Error"]
+t_0 <- model_summary$coefficients["median_house_value", "t value"]
+p_value <- model_summary$coefficients["median_house_value" , "Pr(>|t|)"]
+se <- model_summary$coefficients["median_house_value" , "Std. Error"]
 
 lower <- beta_hat_1 - t_quantile * se_beta_hat_1
 upper <- beta_hat_1 + t_quantile * se_beta_hat_1
 ```
 With 95% confidence level, the estimated true median house value of a housing block in California 1990s is said to be between 0.0000107653771071449  and 0.000012634788259628.
 
-
-```{r}
-model <- lm(y_inc ~ median_house_value, data = housing)
-model_summary <- summary(model)
-beta_hat_0 <- model$coefficients[[1]]
-beta_hat_1 <- model$coefficients[[2]]
-
-model_summary
-
-# t_0 <- model_summary$coefficients["x_house_val", "t value"]
-# p_value <- model_summary$coefficients["x_house_val" , "Pr(>|t|)"]
-# se <- model_summary$coefficients["x_house_val" , "Std. Error"]
-
-lower <- beta_hat_1 - t_quantile * se_beta_hat_1
-upper <- beta_hat_1 + t_quantile * se_beta_hat_1
-
-```
-
 # More Confidence Interval
 ```{r}
-# 1 Random Sample House to Predict.
-house1 <- sample(1:length(housing$households), 1,replace = FALSE)
-house1 <- housing[house1, ]
-
-fittemp <- lm(median_income ~ median_house_value, data = housing)
-
-mean_house_val <- mean(housing$median_house_val)
-
-# point estimate for mean responses
-c(1, as.numeric(mean_house_val)) %*% coef(fittemp)
-
-# c(y0 <- sum(x0 * coef(model)))
-# point estimate for specific response
-# c(1, as.numeric(house1$median_house_value)) %*% coef(fittemp)
-```
-
-
-# CI prediction
-```{r}
-model <- lm(median_income ~ median_house_value, data = housing)
-
-x <- model.matrix(model) #fitted model to matrix
-x0 <- apply(x, 2, mean) # mean median house value
-
-# predict(model, new = data.frame(t(x0)), interval = "confidence")
-# 
-predict(model, new = data.frame(t(x0)), interval = "prediction")
-
-c(y0 <- sum(x0 * coef(model)))
 
 ```
-The predicted median house value of a typical block in California in the 1990s is $\$(3.851572 * 10,000)$ or $\$38,500$
+
+
+The predicted median house value of a typical block in California in the 1990s is $\$(3.851572 * 10,000)$ or $\$3,8515.72$
 
 
 
