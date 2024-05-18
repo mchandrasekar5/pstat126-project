@@ -229,7 +229,7 @@ So, $|24.5834068785213| >  1.9639388980555$\
 # Decision Rule:
 At the 0.05 significant level, we reject H0. There is a linear relationship between the median house value and the median income of the people according to the California Census data in the 1990s.\
 
-## Confidence Interval
+## Confidence Interval for $/beta1$
 ```{r}
 model <- lm(median_income ~ median_house_value, data = housing)
 model_summary <- summary(model)
@@ -245,10 +245,9 @@ se <- model_summary$coefficients["median_house_value", "Std. Error"]
 lower <- beta_hat_1 - t_quantile * se
 upper <- beta_hat_1 + t_quantile * se
 
-ci_med_house_val <- confint(model, 'median_house_value', level = 0.95)
+ci_beta_hat_1 <- confint(model, 'median_house_value', level = 0.95)
 ```
-
-With 95% confidence level, the true mean median value of houses the 1990s in California is estimated to be between \$0.1076538 and \$0.1263479.\
+With 95% confidence level, the true value of $\beta_1$ is estimated to be between 0.1076538 and 0.1263479.\
 
 # More Confidence Interval
 ```{r}
@@ -289,9 +288,8 @@ We took a random sample of one block from the data and got a block with coordina
 
 With 95% confidence, the predicted median income of California residents in the 1990s within this block is estimated to be between \$1827.977 and \$55009.23.
 
-#  Conclusion
-- We learned that the the $\hat\beta_1\text{(median house value)}$ is 0.1170008, which is small but not neglectible. This means that there is a small association between value of someone's house how much they make.
 
-- Our confidence interval for the median house value doesn't make sense despite imputing the correct data. We get that people were more poorer in the 1990s compare to modern times, but houses should not cost a few cents to buy.
+#  Conclusion
+- We learned that $\beta_1$ is somewhere between (0.1076538 and 0.1263479) at the 95% confidence level, which is small but not neglectible. This means that there is a small association between value of someone's house how much they make.
 
 - When we plot our simple linear model, we observe that the data for median income cuts off at \$500,000 with 21 observations. This is unexplained by the source. We believe that this might've resulted from flaws in data collection process. The collector probably rounded off larger and less common values down to \$500,000. However, we also to know if there are data cleaning methods that can improve this issue.
