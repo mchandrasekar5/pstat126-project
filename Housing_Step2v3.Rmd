@@ -1,0 +1,469 @@
+---
+title: "California Housing Price in 1990"
+author:
+  - "Phuc Lu"
+  - "Meghna Chandrasekar"
+  - "Sophia Li"
+  - "Youngju Kwon"
+output:
+  pdf_document:
+    extra_dependencies: ["float"]
+    latex_engine: xelatex
+  html_document: default
+  rmarkdown::pdf_document:
+    fig_caption: yes        
+    includes:  
+      in_header: preamble-latex.tex
+spacing: single
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+library(readr) # So we can read csv file
+library(skimr)
+# library(mapview)
+# library(sf)
+library(dplyr)
+library(ggplot2)
+options(scipen=999) # Undo Scientific notation
+library(tidyr)
+
+```
+
+[Source](https://www.kaggle.com/datasets/camnugent/california-housing-prices/data) from Kaggle.
+
+```{r}
+set.seed(1)
+housing_base <- read_csv('housing.csv',show_col_types = FALSE)
+housing <- sample(1:length(housing_base$households), 600,replace = FALSE)
+housing <- housing_base[housing, ]
+
+## Converting median housing age into categorical data
+## Categories: new house, moderately old house, new house
+## Intervals 20 years apart from 0 - 60
+
+age = housing$housing_median_age
+
+for (i in 1:length(age)){
+    if (age[i] <= 20){
+    housing$housing_median_age[[i]] <- "NEW"
+  }
+  else if (age[i] > 20 && age[i] <= 40){
+    housing$housing_median_age[[i]] <- "MODERATE"
+  }
+  else if (age[i] > 40 && age[i] <= 60){
+    housing$housing_median_age[[i]]<-"OLD"
+  }
+}
+```
+
+```{r}
+# Scaling Unit of Median Income to its correct values
+inc <- housing$median_income
+
+# Income to its correct values
+inc <- housing$median_income
+for (i in 1:length(inc)){
+  if (inc[i] < inc[i]*10000){
+  housing$median_income[[i]] = inc[i]*10000
+  }
+}
+```
+
+```{r, eval = FALSE}
+housing_sf <- st_as_sf(housing, coords = c("longitude", "latitude"), crs = 4326)
+# mapview(housing_sf)
+```
+
+```{r}
+# Median House Value and Median Income
+
+# Median House Value within the block
+#  measured in US Dollars
+
+# Median income of people in the block
+# Measured in tens of thousand of US dollars
+
+# Blocks are defined by its longitude and latitude
+
+```
+
+
+
+## Our Simple Linear Regression Model is given by
+$$
+(\text{Median Income})_i = \beta_0 + \beta_1\text{(Median House Value)}_i + \epsilon_i
+$$
+where $\beta_0$ and $\beta_1$ are unknown constants and $\epsilon_i$ is the random error.
+
+## Hypothesis
+We want to know if there is a linear relationship between the median value of houses in a particular block in California in the 1990s and the people living in the block's median income. In other words, we want to test to see if the value of people's house has any linear relationship to their income.\
+$$
+H_0: \beta_1 = 0 \text{ vs. } H_a: \beta_1 \neq 0
+$$
+
+## Plotting Variables
+```{r, fig.pos='H', fig.width = 5, fig.height = 3, fig.cap='This graph displays the linear relationship between the median value of a house and the median income of the people living in a particular block in California. We can observe that this relationship is close when in low income area and with cheaper but this relationship is more varied as the median price of houses and people\'s income rises.'}
+
+model <- lm(median_income ~ median_house_value, data = housing)
+p <- ggplot(housing, aes(x = median_house_value, y = median_income)) + 
+  geom_point() + 
+  labs(x = 'Median house value of a block (USD)',
+       y = 'Median house income (USD)') +xlim(0, (max(housing$median_house_value+ 20000))) + ggtitle ("Linear Model of Median Income and Median House Value")
+
+p + geom_smooth(method = 'lm',
+  formula = 'y ~ x',
+  se = F) + theme(plot.title = element_text(size=12))
+```
+
+
+##Assessing the fit of the model.
+```{r}
+summary(model)
+```
+The Multiple R-squared value is 0.5026, and the adjusted R-squared value is 0.5018, which is very far from the expected value of close to 1 for a linear model. This means that the model does not do very well to explain the variance in the data. It might be better to use asses a different predictor and explanatory variable or transform the data first.
+
+
+## Checking Assumptions
+```{r, fig.pos='H',fig.align='center', fig.width = 7, fig.height = 4, fig.cap= "These graphs show the fan shape which means that as we move go from cheaper to more expensive houses, the variation increases. This fails the assumption of constant variance. As a consequence, we can expect the estimate of the variance, or MSE to be overestimate or underestimate some values of the predictors. The assumption of homoskedacity appears to be violated in these graphs. The variance of the residuals appears to steadily increase as the fitted value/predictor value increases. There appears to be many influential points especially towards the extreme right/up end of the plots, which could affect the slope of our linear model. Thus, a transformation may be necessary to fit a linear model onto this data. Graphs are identical since there is only one predictor in a simple lienar model."}
+# Residual Vs. Fitted Plot
+model <- lm(median_income ~ median_house_value, data = housing)
+house_val <- housing$median_house_value
+inc <- housing$median_income
+
+residuals <- model$residuals
+par(mfrow=c(1, 2))
+
+plot(fitted(model),residuals, 
+     pch = 19,
+     main = "Residual vs. Fitted Model",
+     xlab = "Residuals",
+     ylab = "Fitted Model",
+     cex.main = 1)
+abline(0,0)
+
+res1 <- model$residuals
+plot(residuals, house_val, 
+     pch = 19,
+     main = "Residual vs. Predictor",
+     xlab = "Residuals",
+     ylab = "Median House Value",
+     cex.main = 1)
+
+```
+
+## Normality
+```{r,fig.pos='H',fig.align='center', fig.width = 7, fig.height = 4, fig.cap = "The median house value is distributed approximately Normal"}
+
+par(mfrow = c(1,2))
+qqnorm(house_val, pch = 19,
+       main = "Normaly Q-Q Plot of Median House Value",
+       cex.main = .8)
+qqline(house_val)
+
+qqnorm(inc, pch = 19,
+       main = "Normaly Q-Q Plot of Median Income",
+       cex.main = 1
+)
+qqline(inc)
+```
+There appears to be slight deviations from normality towards the end of the graph. This could be because the data does not follow a normal disitribution and needs a transformation to be normal.
+
+##Trying Transformations
+
+```{r}
+par(mfrow = c(1,2))
+
+# Applying log transformation
+housing$log_median_income <- log(housing$median_income)
+housing$log_median_house_value <- log(housing$median_house_value)
+
+# Fitting the transformed model
+model_log <- lm(log_median_income ~ log_median_house_value, data = housing)
+
+# Plotting the transformed data
+p_log <- ggplot(housing, aes(x = log_median_house_value, y = log_median_income)) + 
+  geom_point() + 
+  labs(x = 'Log of Median house value of a block (USD)',
+       y = 'Log of Median house income (USD)') + 
+  ggtitle("Log-Transformed Linear Model of Median Income and Median House Value")
+
+p_log + geom_smooth(method = 'lm', formula = 'y ~ x', se = F) + theme(plot.title = element_text(size=12))
+
+
+# Applying square root transformation
+housing$sqrt_median_income <- sqrt(housing$median_income)
+housing$sqrt_median_house_value <- sqrt(housing$median_house_value)
+
+# Fitting the transformed model
+model_sqrt <- lm(sqrt_median_income ~ sqrt_median_house_value, data = housing)
+
+# Plotting the transformed data
+p_sqrt <- ggplot(housing, aes(x = sqrt_median_house_value, y = sqrt_median_income)) + 
+  geom_point() + 
+  labs(x = 'Square Root of Median house value of a block (USD)',
+       y = 'Square Root of Median house income (USD)') + 
+  ggtitle("Square Root-Transformed Linear Model of Median Income and Median House Value")
+
+p_sqrt + geom_smooth(method = 'lm', formula = 'y ~ x', se = F) + theme(plot.title = element_text(size=12))
+
+```
+
+```{r}
+# Summarizing the transformed models
+summary(model_log)
+summary(model_sqrt)
+```
+
+The sdjusted R squared values are even lower now with both the log and square root transformations applied (0.4545 and 0.4902 respectively.
+Since transformations aren't working, it may be better to omit some values towards the end that skew the data.
+
+
+```{r}
+#omit 500001, the value skewing the slope of the model and variance for our residuals
+housingOmited <- housing %>%
+  filter(!median_house_value == 500001)
+```
+
+```{r}
+#plotting ommitted data linear model
+model2 <- lm(median_income ~ median_house_value, data = housingOmited)
+p <- ggplot(housingOmited, aes(x = median_house_value, y = median_income)) + 
+  geom_point() + 
+  labs(x = 'Median house value of a block (USD)',
+       y = 'Median house income (USD)') +xlim(0, (max(housingOmited$median_house_value+ 20000))) + ggtitle ("Linear Model of Median Income and Median House Value with Omitted Values")
+
+p + geom_smooth(method = 'lm',
+  formula = 'y ~ x',
+  se = F) + theme(plot.title = element_text(size=12))
+```
+
+
+```{r}
+summary(model2)
+```
+The R^2 is at 0.4256, which is lower than before. It may be better to use the original data without omitting any values.
+
+```{r, fig.pos='H',fig.align='center', fig.width = 7, fig.height = 4, fig.cap= "These graphs show the fan shape which means that as we move go from cheaper to more expensive houses, the variation increases. This fails the assumption of constant variance. As a consequence, we can expect the estimate of the variance, or MSE to be overestimate or underestimate some values of the predictors. The assumption of homoskedacity appears to be violated in these graphs. The variance of the residuals appears to steadily increase as the fitted value/predictor value increases. There appears to be many influential points especially towards the extreme right/up end of the plots, which could affect the slope of our linear model. Thus, a transformation may be necessary to fit a linear model onto this data. Graphs are identical since there is only one predictor in a simple lienar model."}
+
+# Residual Vs. Fitted Plot of Omitted Model
+model2 <- lm(median_income ~ median_house_value, data = housingOmited)
+house_val <- housingOmited$median_house_value
+inc <- housingOmited$median_income
+
+residuals <- model2$residuals
+par(mfrow=c(1, 2))
+
+plot(fitted(model2),residuals, 
+     pch = 19,
+     main = "Residual vs. Fitted Model with Omitted Values",
+     xlab = "Fitted Model",
+     ylab = "Residuals",
+     cex.main = 1)
+abline(0,0)
+
+res1 <- model2$residuals
+plot(house_val, residuals, 
+     pch = 19,
+     main = "Residual vs. Predictor with Omitted Values",
+     xlab = "Median House Value",
+     ylab = "Residuals",
+     cex.main = 1)
+```
+
+## Normality of Omitted Model
+```{r,fig.pos='H',fig.align='center', fig.width = 7, fig.height = 4, fig.cap = "The median house value is distributed approximately Normal"}
+
+par(mfrow = c(1,2))
+qqnorm(house_val, pch = 19,
+       main = "Normaly Q-Q Plot of Median House Value (omitted values)",
+       cex.main = .8)
+qqline(house_val)
+
+qqnorm(inc, pch = 19,
+       main = "Normaly Q-Q Plot of Median Income (omitted values)",
+       cex.main = 1
+)
+qqline(inc)
+```
+
+# Hypothesis Testing
+```{r}
+## Manual Calculation
+
+alpha <- 0.05
+
+house_val <- housing$median_house_value
+inc <- housing$median_income
+
+if (length(house_val) == length(inc)){
+  n <- length(house_val)
+}else{
+  print(paste("Inconsistent n"))
+}
+
+# Sxy and Sxx
+Sxy <- sum((house_val - mean(house_val)) * (inc - mean(inc)))
+Sxx <- sum((house_val - mean(house_val))^2)
+
+# beta 1 and beta 0
+beta_hat_1 <- Sxy/Sxx
+beta_hat_0 <- mean(inc) - (beta_hat_1 * mean(house_val))
+
+# prediction and residual
+y_hat <- beta_hat_0 + (beta_hat_1 * house_val)
+residuals <- inc - y_hat
+
+# Mean squared residuals
+SSres <- sum(residuals^2)
+ms_res <- SSres/ (n - 2)
+
+# Standard Error of beta 1
+se_beta_hat_1 <- sqrt(ms_res / Sxx)
+
+# t-statistic
+t0 <- beta_hat_1 / se_beta_hat_1
+
+t_quantile <- qt(p = 1 - alpha/2, df = n - 2)
+
+# p-value
+p_value <- 2 * pt(abs(t0), df = n - 2, lower.tail = FALSE)
+
+# list(beta_hat_0 = beta_hat_0, beta_hat_1 = beta_hat_1, t0 = t0, t_quantile = t_quantile)
+```
+
+```{r}
+# print(paste('Sxx: ', Sxx))
+# print(paste('beta hat 0: ', beta_hat_0))
+# print(paste('beta hat 1: ', beta_hat_1))
+# print(paste('sigma hat^2: ', ms_res_house))
+# print(paste('t0: ', t0))
+# print(paste('t-distribution: ', t_quantile))
+# print(paste('p_value: ', p_value))
+# print(paste('standard error: ', se_beta_hat_1))
+```
+
+Reject $H_0$ if $|t_0| > t_{0.0025, 598}$\
+We found that $t_0 = 24.5834068785213$\
+So, $|24.5834068785213| >  1.9639388980555$\
+
+```{r}
+# print(paste('At the 0.05 significant level, we fail to reject H0. This means that given a particular block in California, there is a linear relation between the median house value and the median income of the people living in the block.'))
+```
+# Decision Rule:
+At the 0.05 significant level, we reject H0. This means that given a particular block in California in the 1990s, there is a linear relation between the median house value and the median income of the people living in the block.\
+
+## Confidence Interval for $/beta1$
+```{r}
+model <- lm(median_income ~ median_house_value, data = housing)
+model_summary <- summary(model)
+
+beta_hat_0 <- model$coefficients[[1]]
+beta_hat_1 <- model$coefficients[[2]]
+
+t_0 <- model_summary$coefficients["median_house_value", "t value"]
+p_value <- model_summary$coefficients["median_house_value" , "Pr(>|t|)"]
+se <- model_summary$coefficients["median_house_value" , "Std. Error"]
+se <- model_summary$coefficients["median_house_value", "Std. Error"]
+
+lower <- beta_hat_1 - t_quantile * se
+upper <- beta_hat_1 + t_quantile * se
+
+ci_beta_hat_1 <- confint(model, 'median_house_value', level = 0.95)
+```
+With 95% confidence level, the true value of $\beta_1$ is estimated to be between 0.1076538 and 0.1263479.\
+
+This means that for every one dollar increase in median house value of a block, the median household income within that block increases by between 0.1076538 and 0.1263479 dollars. These numbers are very small since the average value of the median housing value is 179150, which is a large number in the 100000s; additionally the median income per household is measured in tens of thousands of US dollars.
+
+We can also interpret this as: With 95% confidence, for every $1,000 increase in the median house value of the block, the median household income of the block increases by between 107.6538 and 126.3479 US dollars.
+
+# More Confidence Interval
+```{r}
+set.seed(1)
+# 1 Random Sample House to Predict.
+rand_block <- sample(1:length(housing$households), 1,replace = FALSE)
+rand_block <- housing[rand_block, ]
+
+fittemp <- lm(median_income ~ median_house_value, data = housing)
+skimmed_housing <- skim(housing)
+
+# Building a Mean Data Frame
+mean_skimmed_house <- skimmed_housing %>%
+  select(skim_variable, numeric.mean)
+
+mean_df <- mean_skimmed_house %>%
+  pivot_wider(names_from = skim_variable, values_from = numeric.mean)
+
+
+# point estimate for mean responses
+point_est_mean_resp <- c(1, as.numeric(mean_df$median_income)) %*% coef(fittemp)
+
+# CI for specific response
+mean_median_income <- predict(fittemp, newdata = mean_df, interval = 'confidence', level = 0.95)
+
+
+# point estimate for specific response
+point_est_spec_resp <- c(1, as.numeric(rand_block$median_income)) %*% coef(fittemp)
+
+# PI for specific response
+pred_median_income <- predict(fittemp, newdata = rand_block, interval = 'prediction', level = 0.95)
+```
+### Confidence Interval
+With 95% confidence, the mean median income of California residents with measurements equal to the average in the data in the 1990s is estimated to be between \$37431.57 and \$39599.88
+
+### Prediction Interval
+We took a random sample of one block from the data and got a block with coordinates 32.72 latitude and -117.13 longitude.
+
+With 95% confidence, the predicted median income of California residents in the 1990s within this block is estimated to be between \$1827.977 and \$55009.23.
+
+
+#  Conclusion
+- We learned that $\beta_1$ is somewhere between (0.1076538 and 0.1263479) at the 95% confidence level, which is small but not neglectible. This means that there is a small association between value of someone's house how much they make.
+
+- When we plot our simple linear model, we observe that the data for median income cuts off at \$500,000 with 21 observations. This is unexplained by the source. We believe that this might've resulted from flaws in data collection process. The collector probably rounded off larger and less common values down to \$500,000. However, we also to know if there are data cleaning methods that can improve this issue.
+
+
+##Another Prediction (optional)
+#Prediction
+
+```{r}
+# an interesting value of median_house_value
+min(housing$median_house_value)
+max(housing$median_house_value)
+x_value <- 32500
+```
+
+
+```{r}
+# Create a new data frame with the specified x_value
+new_data <- data.frame(median_house_value = x_value)
+
+# Calculate confidence intervals for the mean response
+mean_response_ci <- predict(model, newdata = new_data, interval = "confidence", level = 0.95)
+
+# Calculate prediction intervals for the individual response
+individual_response_pi <- predict(model, newdata = new_data, interval = "prediction", level = 0.95)
+
+# Print the results
+print(mean_response_ci)
+print(individual_response_pi)
+```
+
+##Interpretation
+
+Mean Response Confidence Interval:
+      With 95% confidence, when the median house value is its lowest at $32500, the mean median income is predicted to be 1.814593 ten thousand dollars, or 18145.93 dollars.
+      With 95% confidence, the mean median_income for this median_house_value lies between 16190.54 dollars and 44774.09 dollars.
+This interval is relatively narrow because it estimates the mean of the population at this median_house_value.
+
+
+Individual Response Prediction Interval:
+        With 95% confidence, when the median house value is its lowest at 32500, an individual median income is predicted to be 18145.93.
+        With 95% confidence, an individual median income at this median house value could lie between -8482.229 and 44774.09 dollars. The negative values can be disregarded, however, as it is not possible to have a negative household income (for this dataset). This interval is wider because it accounts for the variability of individual responses around the mean response.
+
+Conclusion
+    The mean response confidence interval provides a range where we expect the average median_income to lie for the given median_house_value, reflecting the precision of our estimate.
+    The individual response prediction interval provides a range where we expect the actual median_income for an individual house with the given median_house_value to lie, reflecting the variability in the population.
