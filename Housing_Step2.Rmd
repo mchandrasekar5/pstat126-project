@@ -29,6 +29,7 @@ library(skimr)
 library(dplyr)
 library(ggplot2)
 options(scipen=999) # Undo Scientific notation
+library(tidyr)
 
 ```
 
@@ -55,6 +56,19 @@ for (i in 1:length(age)){
   }
   else if (age[i] > 40 && age[i] <= 60){
     housing$housing_median_age[[i]]<-"OLD"
+  }
+}
+```
+
+```{r}
+# Scaling Unit of Median Income to its correct values
+inc <- housing$median_income
+
+# Income to its correct values
+inc <- housing$median_income
+for (i in 1:length(inc)){
+  if (inc[i] < inc[i]*10000){
+  housing$median_income[[i]] = inc[i]*10000
   }
 }
 ```
@@ -149,7 +163,6 @@ qqnorm(inc, pch = 19,
 qqline(inc)
 ```
 
-
 # Hypothesis Testing
 ```{r}
 ## Manual Calculation
@@ -195,7 +208,6 @@ p_value <- 2 * pt(abs(t0), df = n - 2, lower.tail = FALSE)
 # list(beta_hat_0 = beta_hat_0, beta_hat_1 = beta_hat_1, t0 = t0, t_quantile = t_quantile)
 ```
 
-
 ```{r}
 # print(paste('Sxx: ', Sxx))
 # print(paste('beta hat 0: ', beta_hat_0))
@@ -214,36 +226,72 @@ So, $|24.5834068785213| >  1.9639388980555$\
 ```{r}
 # print(paste('At the 0.05 significant level, we fail to reject H0. This means that given a particular block in California, there is a linear relation between the median house value and the median income of the people living in the block.'))
 ```
-# Conclusion:
-At the 0.05 significant level, we reject H0. This means that given a particular block in California in the 1990s, there is a linear relation between the median house value and the median income of the people living in the block.\
-
-
-
+# Decision Rule:
+At the 0.05 significant level, we reject H0. There is a linear relationship between the median house value and the median income of the people according to the California Census data in the 1990s.\
 
 ## Confidence Interval
 ```{r}
 model <- lm(median_income ~ median_house_value, data = housing)
 model_summary <- summary(model)
+
 beta_hat_0 <- model$coefficients[[1]]
 beta_hat_1 <- model$coefficients[[2]]
 
 t_0 <- model_summary$coefficients["median_house_value", "t value"]
 p_value <- model_summary$coefficients["median_house_value" , "Pr(>|t|)"]
 se <- model_summary$coefficients["median_house_value" , "Std. Error"]
+se <- model_summary$coefficients["median_house_value", "Std. Error"]
 
-lower <- beta_hat_1 - t_quantile * se_beta_hat_1
-upper <- beta_hat_1 + t_quantile * se_beta_hat_1
+lower <- beta_hat_1 - t_quantile * se
+upper <- beta_hat_1 + t_quantile * se
+
+ci_med_house_val <- confint(model, 'median_house_value', level = 0.95)
 ```
-With 95% confidence level, the estimated true median house value of a housing block in California 1990s is said to be between 0.0000107653771071449  and 0.000012634788259628.
+
+With 95% confidence level, the true mean median value of houses the 1990s in California is estimated to be between \$0.1076538 and \$0.1263479.\
 
 # More Confidence Interval
 ```{r}
+set.seed(1)
+# 1 Random Sample House to Predict.
+rand_block <- sample(1:length(housing$households), 1,replace = FALSE)
+rand_block <- housing[rand_block, ]
 
+fittemp <- lm(median_income ~ median_house_value, data = housing)
+skimmed_housing <- skim(housing)
+
+# Building a Mean Data Frame
+mean_skimmed_house <- skimmed_housing %>%
+  select(skim_variable, numeric.mean)
+
+mean_df <- mean_skimmed_house %>%
+  pivot_wider(names_from = skim_variable, values_from = numeric.mean)
+
+
+# point estimate for mean responses
+point_est_mean_resp <- c(1, as.numeric(mean_df$median_income)) %*% coef(fittemp)
+
+# CI for specific response
+mean_median_income <- predict(fittemp, newdata = mean_df, interval = 'confidence', level = 0.95)
+
+
+# point estimate for specific response
+point_est_spec_resp <- c(1, as.numeric(rand_block$median_income)) %*% coef(fittemp)
+
+# PI for specific response
+pred_median_income <- predict(fittemp, newdata = rand_block, interval = 'prediction', level = 0.95)
 ```
+### Confidence Interval
+With 95% confidence, the mean median income of California residents with measurements equal to the average in the data in the 1990s is estimated to be between \$37431.57 and \$39599.88
 
+### Prediction Interval
+We took a random sample of one block from the data and got a block with coordinates 32.72 latitude and -117.13 longitude.
 
-The predicted median house value of a typical block in California in the 1990s is $\$(3.851572 * 10,000)$ or $\$3,8515.72$
+With 95% confidence, the predicted median income of California residents in the 1990s within this block is estimated to be between \$1827.977 and \$55009.23.
 
+#  Conclusion
+- We learned that the the $\hat\beta_1\text{(median house value)}$ is 0.1170008, which is small but not neglectible. This means that there is a small association between value of someone's house how much they make.
 
+- Our confidence interval for the median house value doesn't make sense despite imputing the correct data. We get that people were more poorer in the 1990s compare to modern times, but houses should not cost a few cents to buy.
 
-
+- When we plot our simple linear model, we observe that the data for median income cuts off at \$500,000 with 21 observations. This is unexplained by the source. We believe that this might've resulted from flaws in data collection process. The collector probably rounded off larger and less common values down to \$500,000. However, we also to know if there are data cleaning methods that can improve this issue.
