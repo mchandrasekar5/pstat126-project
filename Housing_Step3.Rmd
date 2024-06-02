@@ -1,0 +1,272 @@
+---
+title: "California Housing Price in 1990"
+author:
+  - "Phuc Lu"
+  - "Meghna Chandrasekar"
+  - "Sophia Li"
+  - "Youngju Kwon"
+output:
+  pdf_document:
+    extra_dependencies: ["float"]
+    latex_engine: xelatex
+  html_document: default
+  rmarkdown::pdf_document:
+    fig_caption: yes        
+    includes:  
+      in_header: preamble-latex.tex
+spacing: single
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+library(readr) # So we can read csv file
+library(skimr)
+# library(mapview)
+# library(sf)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+# options(scipen=999) # Undo Scientific notation
+library(tidyr)
+library(GGally)
+library(broom)
+library(faraway)
+```
+
+## Introduction
+
+The data contains information from the 1990 California census
+([Source](https://www.kaggle.com/datasets/camnugent/california-housing-prices/data)
+from Kaggle). The predictor variable is median house value of houses
+within a block, and the response variable is median income within a
+block.
+
+Introduction (briefly refresh the reader’s mind as to the variables of interest). Remember
+that you should include a reference for the original data source, and the reader should
+know to what population you are inferring your results.
+
+```{r}
+housing <- read_csv('train_data.csv',show_col_types = FALSE)
+# Data are properly scales and ready to use
+```
+
+## Feature Engineering
+We part the data randomly by 80:20 where 80 into training and 20 for testing.
+We made sure to remove any missing data and scale the median income to its proper values and plot the median house age into 3 categories.
+Encode age of houses and proximity into dummy variables.
+```{r}
+# Encoding Dummies for House Ages
+# Will choase reference = OLD HOuse
+new_house <- ifelse(housing$housing_median_age == "NEW", 1, 0)
+old_house <- ifelse(housing$housing_median_age == "OLD", 1, 0)
+moderate_house <- ifelse(housing$housing_median_age == "MODERATE", 1, 0)
+
+# Encoding categories into Indicator functions
+# Will choose reference = INLAND
+inland <- ifelse(housing$ocean_proximity=="INLAND", 1, 0)
+lessHour <- ifelse(housing$ocean_proximity=="<1H OCEAN", 1, 0)
+nearOcean <- ifelse(housing$ocean_proximity=="NEAR OCEAN", 1, 0)
+island <- ifelse(housing$ocean_proximity=="ISLAND", 1, 0)
+nearBay <- ifelse(housing$ocean_proximity=="NEAR BAY", 1, 0)
+```
+
+```{r}
+# new_df <- data.frame(long = housing$longitude, lat = housing$latitude, age = housing$housing_median_age)
+
+# g <- ggplot(new_df, aes(x = long, y = lat, color = age)) + geom_point()
+# g
+```
+
+```{r, out.width='70%'}
+knitr::include_graphics("pairs.png")
+```
+
+```{r}
+library(corrplot)
+# head(housing)
+housing1 <- housing[4:9]
+# cor(housing1)
+corrplot(cor(housing1), method = 'number')
+# heatmap(cor(housing1))
+```
+```{r}
+# Trying to predict the price of a house of a certain block.
+price <- housing$median_house_value
+
+# Putting indicator functions into a new data frame for fitting a model.
+model1 <- lm(median_house_value ~ lessHour + nearOcean + island + nearBay, housing)
+modSum <- summary(model1)
+# modSum
+```
+$R^2 = 0.235$\
+Island is not significant because hyp. test, but also bc there's literally only 1 observation.\
+
+### Model 2
+\[
+\begin{aligned}
+\text{medianHouseValue}_i &= \beta_0 + \beta_1 I\{\text{oceanProximity} = \text{<1 Hour}\}_i \\
+&\quad + \beta_2 I\{\text{oceanProximity} = \text{nearOcean}\}_i \\
+&\quad + \beta_3 I\{\text{oceanProximity} = \text{island}\}_i \\
+&\quad + \beta_4 I\{\text{oceanProximity} = \text{nearBay}\}_i \\
+&\quad + \beta_5 \text{medianIncome}_i
+\end{aligned}
+\]
+
+```{r}
+income <- housing$median_income
+
+# Second Model
+model2 <- lm(price ~ lessHour + nearOcean + island + nearBay + new_house + moderate_house + income, housing)
+# summary(model2)
+```
+The $R^2$ increases by 0.235 to 0.6482.
+
+```{r}
+# income <- housing$median_income
+# Third Model
+model3 <- lm(price ~ lessHour + nearOcean + island + nearBay + median_income + longitude + latitude + new_house + moderate_house, housing)
+summary(model3)
+```
+The $R^2$ increases slightly 0.6425 to 0.6548.
+
+```{r}
+# Full Model
+full_model <- lm(median_house_value ~ lessHour + nearOcean + island + nearBay + median_income + longitude + latitude + new_house + moderate_house + population + households + total_rooms + total_bedrooms, housing)
+
+# R^2 = 0.6967
+summary(full_model)
+```
+
+```{r}
+# helper function
+tidy_leaps <- function(leaps_out){
+  # tibble of candidate models
+  summary(leaps_out)$which %>% 
+    as_tibble() %>%
+    # add p, n, and model id
+    mutate(p = rowSums(across(everything())) - 1,
+           n = leaps_out$nn,
+           model_id = row_number()) %>%
+    # compress model terms into list-column
+    nest(model_terms = -c('model_id', 'p', 'n')) %>%
+    # add bic, adjusted r2, and aic
+    bind_cols(bic = summary(leaps_out)$bic,
+              adjrsq = summary(leaps_out)$adjr2) %>%
+    mutate(aic = bic - p*log(n) + 2*p)
+}
+```
+
+```{r}
+library(leaps)
+out <- regsubsets(median_house_value ~ lessHour + nearOcean + island + nearBay + median_income + longitude + latitude + new_house + moderate_house + population + households + total_rooms + total_bedrooms, housing,
+                  method = 'seqrep',
+                  nbest = 1,
+                  nvmax = 100)
+# tidy_leaps(out)
+```
+
+```{r}
+best_models <- tidy_leaps(out) %>%
+  mutate(adjrsq = -adjrsq) %>%
+  pivot_longer(c('aic', 'bic', 'adjrsq'),
+               names_to = 'criterion',
+               values_to = 'value') %>%
+  group_by(criterion) %>%
+  slice_min(order_by = value, n = 1)
+
+## for the AIC criterion, predictive accuracy
+# best_models$model_terms[[2]]
+```
+### Stepwise Selection, Best Model
+\[
+\begin{aligned}
+\text{medianHouseValue}_i &= \beta_0 + \beta_1 I\{\text{oceanProximity} = \text{<1 HourOcean}\}_i \\
+&\quad + \beta_2 I\{\text{oceanProximity} = \text{nearOcean}\}_i \\
+&\quad + \beta_3 I\{\text{oceanProximity} = \text{island}\}_i \\
+&\quad + \beta_4 I\{\text{oceanProximity} = \text{nearBay}\}_i \\
+&\quad + \beta_5 \text{medianIncome}_i \\
+&\quad + \beta_6 I\text{longitude}_i \\
+&\quad + \beta_7 I\text{latitude}_i \\
+&\quad + \beta_8 I\{\text{housingMedianAge} = \text{NEW}\}_i \\
+&\quad + \beta_9 I\{\text{housingMedianAge} = \text{MODERATE}\}_i \\
+&\quad + \beta_{10} I\text{population}_i \\
+&\quad + \beta_{11} I\text{households}_i \\
+\end{aligned}
+\]
+
+```{r}
+best_model <- lm(median_house_value ~ lessHour + nearOcean + island + nearBay + median_income + longitude + latitude + new_house + moderate_house + population + households, housing)
+
+# Going with the 12 predictors model
+
+model_sum <- summary(best_model)
+# model_sum$r.squared
+# Multiple R-squared:  0.696452
+plot(fitted(best_model), model_sum$residuals,
+     pch = 19,
+     xlab = 'Fitted Model',
+     ylab = 'Residuals')
+abline(0,0)
+```
+We tried transformation and interactions, but it was ineffective in improving the goodness of fit, $R^2$.
+We know that the slant is caused by the cap in median house value data at 500001.
+
+```{r}
+summary(best_model)
+best_model%>%confint()
+
+```
+
+
+There is not sufficient evidence to say that there is any significance between houses near the bay and houses near ocean and their values, after accounting for geographical coordinates, median income, household sizes, houses less than one hour away from the ocean, houses that are inland, age of house, and the population in the block the house is located in.
+
+But island and inland are.
+
+the median income of the block has a high association to higher house values in the block.
+
+Intercept is affected by the old houses and houses inland.
+
+When testing significance of inland houses and their value, we find that inland proximity to the ocean is a significant predictor for house value at the 0.05 test level. 
+```{r}
+t_0 = abs(summary(lm(median_house_value ~ inland, housing))$coefficient['inland', 't value'])
+t_0 > qt(0.025, sum(inland)-1, lower.tail = FALSE)
+# Reject H_0
+# lm(median_house_value ~ inland, housing) %>%confint
+```
+## $R^2$
+Multiple R-squared:  0.6965
+Adjusted R-squared:  0.6893
+This is the best goodness of fit that we could get with our 12 predictors model. Anything removed, interacted or transformed would only lower the goodness of fit.
+A high goodness of fit doesn't necessarily accurately describe the population because it's only explaining about 70% of it.
+
+
+## Analysis of residual and influence points(needs work)
+```{r}
+augment(best_model) %>% head()
+```
+```{r}
+par(mfrow = c(1,2))
+hatv <- hatvalues(best_model)
+# head(hatv)
+# sum(hatv)
+idk <- row.names(housing)
+halfnorm(hatv, labs = idk, ylab = "Leverages")
+
+qqnorm(rstandard(best_model))
+abline(0,1)
+```
+
+## Outliers stuff needs work
+```{r}
+stud <- rstudent(best_model)
+stud[which.max(abs(stud))]
+qt(0.05/(50*2), 44)
+```
+
+## Continue from there on
