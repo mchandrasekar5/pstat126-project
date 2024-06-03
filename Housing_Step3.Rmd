@@ -43,13 +43,9 @@ library(faraway)
 
 The data contains information from the 1990 California census
 ([Source](https://www.kaggle.com/datasets/camnugent/california-housing-prices/data)
-from Kaggle). The predictor variable is median house value of houses
-within a block, and the response variable is median income within a
-block.
+from Kaggle).
+This dataset is a California census housing price data from C1990s. It captures the geographical coordinates of each census tract, median house value, median house age, the proximity to the ocean, number of bedrooms, number of rooms, the population of those living in the block, the median income, and the number of households within the block.
 
-Introduction (briefly refresh the reader’s mind as to the variables of interest). Remember
-that you should include a reference for the original data source, and the reader should
-know to what population you are inferring your results.
 
 ```{r}
 housing <- read_csv('train_data.csv',show_col_types = FALSE)
