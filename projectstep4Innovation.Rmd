@@ -1,0 +1,255 @@
+---
+title: 'California Housing Price in 1990: Innovation'
+author:
+- Phuc Lu
+- Meghna Chandrasekar
+- Sophia Li
+- Youngju Kwon
+output:
+  pdf_document:
+    extra_dependencies: float
+    latex_engine: xelatex
+  html_document: default
+  rmarkdown::pdf_document:
+    fig_caption: yes
+    includes:
+      in_header: "preamble-latex.tex"
+  word_document: default
+spacing: single
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+library(readr) # So we can read csv file
+library(skimr)
+# library(mapview)
+# library(sf)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+options(scipen=999) # Undo Scientific notation
+library(tidyr)
+library(GGally)
+library(broom)
+library(faraway)
+library(MASS) #for ordinal logistic regression
+library(lmtest) #for breusch-pagan test
+#install.packages("arm")
+library(arm)
+```
+
+
+```{r}
+housing <- read.csv('~/pstat126Project/data/train_data.csv')
+```
+
+```{r}
+# encoding the categorical data
+new_house <- ifelse(housing$housing_median_age == "NEW", 1, 0)
+old_house <- ifelse(housing$housing_median_age == "OLD", 1, 0)
+moderate_house <- ifelse(housing$housing_median_age == "MODERATE", 1, 0)
+inland <- ifelse(housing$ocean_proximity=="INLAND", 1, 0)
+lessHour <- ifelse(housing$ocean_proximity=="<1H OCEAN", 1, 0)
+nearOcean <- ifelse(housing$ocean_proximity=="NEAR OCEAN", 1, 0)
+island <- ifelse(housing$ocean_proximity=="ISLAND", 1, 0)
+nearBay <- ifelse(housing$ocean_proximity=="NEAR BAY", 1, 0)
+```
+
+## Issues with our Data
+
+When we use the best model from our housing data with 11 predictors and plot the residuals versus the fitted values, we see heteroscedasticity in the residual distribution, especially towards the right side of the plot.
+
+```{r, fig.height = 3, fig.width = 5}
+best_model <- lm(median_house_value ~ lessHour + nearOcean + island + nearBay + median_income + longitude + latitude + new_house + moderate_house + population + households, housing)
+
+# Going with the 11 predictors model
+
+model_sum <- summary(best_model)
+# model_sum$r.squared
+# Multiple R-squared:  0.696452
+plot(fitted(best_model), model_sum$residuals,
+     pch = 19,
+     xlab = 'Fitted Model',
+     ylab = 'Residuals')
+abline(0,0)
+# summary(best_model)
+# best_model%>%confint()
+```
+
+Heteroscedasticity in the the residuals can lead to several issues in a linear model, including: Inefficient OLS estimators that do not have the smallest possible variance, incorrect standard errors of the estimated coefficients, and invalid inferences using test statistics.
+
+## Weighted Least Squares
+
+Weighted Least Squares is appropriate to use when homoscedasticity in OLS linear regression is violated, which we see in our data.
+
+Visually, it is clear that our residual errors are not constant. 
+The Breusch-Pagan Test for heteroscedacity tests for it statistically.
+
+$$H_0: \text{The variance of the residuals in our linear model is constant, indicating homoscedacity.}$$
+
+$$H_a: \text{The variance of the residuals in our linear model is not constant, indicating heteroscedacity.}$$
+
+```{r, echo = FALSE}
+#bptest(best_model)
+```
+The test statistic for the Breusch-Pagan test is 41.338 with 11 degrees of freedom.
+The p-value for the  Breusch-Pagan test for heteroskedacity is very low, at 0.00002107.
+Thus, we can reject the null hypothesis that the variance of the residuals is constant.
+
+## Theory for Weighted Least Squares
+The method of ordinary least squares assumes that there is constant variance in the errors (homoscedasticity), and weighted least squares can be used when this assumption is violated (heteroscedasticity).
+
+Given the linear model
+$$Y = X\beta + \epsilon^*$$
+
+The error term, $\epsilon^*$, is assumed to have a standard normal distribution (centereda at 0) and has the nonconstant variance-covariance matrix:
+
+$$\begin{bmatrix}
+  \sigma_1^2 & 0 & ... & 0 \\
+  0 & \sigma_2^2  & \dots & 0 \\
+  \vdots & \vdots & \ddots & \vdots\\
+  0 & 0 & \dots & \sigma^2_n
+\end{bmatrix}$$
+
+However, when this assumption is violated we can add weights to the variance of the residuals.
+The weight is defined by the reciprocal of each variance, $\hat{\sigma_i}^2$
+$$w_i = \frac{1}{\hat{\sigma_i}^2}$$
+Let matrix W be a diagonal matrix containing these weights.
+
+$$W = \begin{bmatrix}
+  w_1 & 0 & ... & 0 \\
+  0 & w_2  & \dots & 0 \\
+  \vdots & \vdots & \ddots & \vdots\\
+  0 & 0 & \dots & w_n
+\end{bmatrix}$$
+
+The weighted least squares estimate is 
+$$\hat{\beta}_{WLS} = \text{argmin}\sum^n_i\epsilon_i^*2$$
+$$ = (X^TWX)^{-1}X^TWY$$
+
+Each weight is inversely proportional to the error variance, so an observation with a large error variance will have a smaller weight, and vice versa. Weighted least squares is useful to bring proportionality when some observations and correspodingly their variances are much larger than others.
+
+## Implementing Weighted Least Squares
+Since heteroscedasticity is present, we can use Weighted Least Squares to improve our model.
+
+Weights can be calculated based off either the inverse of the residuals or the fitted values.
+
+```{r, echo = FALSE}
+# Calculate residuals of best model
+residuals <- resid(best_model)
+
+# Calculate weights based on residuals
+weights_residuals <- 1 / (residuals^2)
+
+# Fit WLS model using weights based on residuals
+wls_model_residuals <- lm(median_house_value ~ lessHour + nearOcean + island + nearBay + median_income + longitude + latitude + new_house + moderate_house + population + households, housing, weights = weights_residuals)
+
+#summary(wls_model_residuals)
+```
+
+```{r, echo = F}
+fitted_values <- fitted(best_model)
+
+#calculating weight based off of fitted values
+weights_fitted <- 1 / (fitted_values^2)
+
+wls_model_fitted <- lm(median_house_value ~ lessHour + nearOcean + island + nearBay + median_income + longitude + latitude + new_house + moderate_house + population + households, housing, weights=weights_fitted)
+
+#summary(wls_model_fitted)
+```
+
+
+## Comparing Models
+
+```{r, echo = F}
+# Compare models
+#summary(best_model)$r.squared
+#summary(wls_model_residuals)$r.squared
+#summary(wls_model_fitted)$r.squared
+```
+
+When we perform weighted least squares by weighted the residuals, the $R^2$ increases from 0.696451 to 0.9726604.
+
+When we perform weighted least squares by weighted the fitted values, the $R^2$ decreases from 0.696451 to 0.5754741.
+
+This suggests that the weighted least squares by residuals significantly increases the $R^2$ value, indicating that our model's explanatory power of the variance improved.
+
+```{r, echo = F}
+#AIC(best_model)
+#AIC(wls_model_residuals)
+#AIC(wls_model_fitted)
+
+#BIC(best_model)
+#BIC(wls_model_residuals)
+#AIC(wls_model_fitted)
+```
+However, the AIC (Aikake Information criterion) in the weighted least squared model by residuals is 13584.62 vs 12008.51 in the OLS model, and the BIC (Bayesian Information Criterion) is 13613.84 in the WLS versus 12062.76 in the OLS model, were lower values indicate a better model.
+
+```{r, echo = F}
+# Residual plots for best model
+#par(mfrow=c(2,2))
+#plot(best_model)
+
+# Residual plots for WLS model (based on residuals weights)
+par(mfrow=c(2,2))
+plot(wls_model_residuals)
+
+# Residual plots for WLS model (based on fitted value weights)
+#par(mfrow=c(2,2))
+#plot(wls_model_fitted)
+
+# Q-Q plots
+#qqnorm(resid(best_model))
+#qqline(resid(best_model))
+
+#qqnorm(resid(wls_model_residuals))
+#qqline(resid(wls_model_residuals))
+```
+The residuals vs fitted plot in the WLS model shows that the data is fitted into clusters. This is likely because the predictors are organized into categorical variables. All clusters have both positive and negative values on the residuals axis.
+
+## Binned residual plot
+
+A binned plot groups the data into bins and plots the average residuals within each bin. This may show a more representative view of the nature of the residuals variance. The number of bins chosen is 4.
+
+```{r, echo = F}
+#get fitted values of wls models using residuals
+fitted_values_wls <- fitted(wls_model_residuals)
+
+#get residuals of wls models using residuals
+residuals_wls <- resid(wls_model_residuals)
+```
+
+
+```{r, fig.height = 3, fig.width = 5}
+?binnedplot
+ binnedplot(x = fitted_values_wls, residuals_wls, nclass=4, 
+    xlab="Expected Values", ylab="Average residual", 
+    main="Binned residual plot", 
+    cex.pts=0.8, col.pts=1, col.int="gray")
+```
+
+In the weighted least squared model by residuals, all of the binned residuals fall outside the 95% CI bounds, indicating that the residuals are not evenly distributed.
+
+```{r, fig.height = 3, fig.width = 5}
+?binnedplot
+ binnedplot(x = fitted_values, residuals, nclass=4, 
+    xlab="Expected Values", ylab="Average residual", 
+    main="Binned residual plot", 
+    cex.pts=0.8, col.pts=1, col.int="gray")
+```
+
+In the unaltered model, the residuals also fall out of the 95% CI interval.
+
+```{r, echo = F}
+bptest(wls_model_residuals)
+```
+The bp test fails for the new model as well. Overall, the cross validation failed in WLS method improving our linear model, and further methods should be implemented to fix the heteroskedasticity in variances.
+
+
+
